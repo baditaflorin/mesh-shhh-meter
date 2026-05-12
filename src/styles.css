@@ -1,14 +1,9 @@
-/* App-local styles. Mesh chrome (settings drawer, self-ref bar) is provided by
- * @baditaflorin/mesh-common/styles.css imported in main.tsx. */
-
 :root {
   color-scheme: dark;
 }
-
 * {
   box-sizing: border-box;
 }
-
 html,
 body,
 #root {
@@ -22,30 +17,172 @@ body,
   -webkit-tap-highlight-color: transparent;
 }
 
-.feature-placeholder {
-  padding: 6rem 1.5rem 2rem;
-  text-align: center;
+.shhh-screen {
+  padding: 4rem 1rem 5rem;
+  max-width: 36rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+.shhh-header {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.6rem;
 }
-
-.feature-placeholder h1 {
-  font-size: 1.6rem;
+.shhh-header h1 {
   margin: 0;
   color: var(--mesh-accent);
+  font-size: 1.5rem;
 }
 
-.feature-placeholder p {
-  max-width: 32rem;
-  margin: 0;
-  opacity: 0.85;
-  line-height: 1.5;
+.shhh-role-switch {
+  display: flex;
+  gap: 0.3rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.3rem;
+  border-radius: 999px;
 }
-
-.feature-status {
+.shhh-role-switch button {
+  background: transparent;
+  color: var(--mesh-muted);
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
   font-size: 0.85rem;
-  opacity: 0.6;
+}
+.shhh-role-switch button.is-active {
+  background: var(--mesh-accent);
+  color: #0b0a06;
+  font-weight: 600;
+}
+
+.shhh-name {
+  width: min(280px, 90%);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--mesh-fg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  text-align: center;
+}
+
+.shhh-arm,
+.shhh-disarm {
+  background: var(--mesh-accent);
+  color: #0b0a06;
+  border: none;
+  border-radius: 10px;
+  padding: 0.9rem 2rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.shhh-disarm {
+  background: transparent;
+  color: var(--mesh-muted);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.shhh-armed {
+  margin: 0;
+  color: var(--mesh-accent);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.shhh-bar,
+.shhh-class-bar,
+.shhh-peer-bar {
+  width: 100%;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.shhh-bar {
+  max-width: 28rem;
+}
+.shhh-class-bar {
+  height: 40px;
+  max-width: 32rem;
+}
+.shhh-peer-bar {
+  height: 14px;
+  flex: 1;
+}
+
+.shhh-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--lvl, 0%);
+  background: var(--mesh-accent);
+  transition:
+    width 100ms linear,
+    background 200ms;
+}
+
+/* color intensifies as the level rises */
+.shhh-bar[style*="--lvl:7"] .shhh-bar-fill,
+.shhh-bar[style*="--lvl:8"] .shhh-bar-fill,
+.shhh-bar[style*="--lvl:9"] .shhh-bar-fill,
+.shhh-class-bar[style*="--lvl:7"] .shhh-bar-fill,
+.shhh-class-bar[style*="--lvl:8"] .shhh-bar-fill,
+.shhh-class-bar[style*="--lvl:9"] .shhh-bar-fill,
+.shhh-peer-bar[style*="--lvl:7"] .shhh-bar-fill,
+.shhh-peer-bar[style*="--lvl:8"] .shhh-bar-fill,
+.shhh-peer-bar[style*="--lvl:9"] .shhh-bar-fill {
+  background: #ff6b6b;
+}
+
+.shhh-class-avg {
+  margin: 0;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.shhh-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.shhh-peer {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) 2fr auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+}
+.shhh-peer.is-idle {
+  opacity: 0.4;
+}
+.shhh-peer-name {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shhh-peer-val {
+  font-variant-numeric: tabular-nums;
+  min-width: 2rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--mesh-muted);
+}
+.shhh-empty {
+  text-align: center;
+  color: var(--mesh-muted);
+  font-style: italic;
+  padding: 1rem 0;
 }
