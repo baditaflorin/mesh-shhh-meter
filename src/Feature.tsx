@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { MeshConfig, YRoom } from "@baditaflorin/mesh-common";
+import {
+  useMicLevel,
+  useNamedPeer,
+  usePerPeerValue,
+  type MeshConfig,
+  type YRoom,
+} from "@baditaflorin/mesh-common";
 
 type Props = { room: YRoom | null; config: MeshConfig };
 
@@ -11,7 +17,6 @@ type Reading = {
   name: string;
 };
 
-const NAME_KEY = (prefix: string) => `${prefix}:displayName`;
 const ROLE_KEY = (prefix: string) => `${prefix}:role`;
 type Role = "peer" | "monitor";
 
@@ -28,110 +33,47 @@ export function Feature({ room, config }: Props) {
 }
 
 function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
-  const [name, setName] = useState(
-    () => localStorage.getItem(NAME_KEY(config.storagePrefix)) ?? "",
-  );
+  const { name, setName, myName } = useNamedPeer(config, room);
   const [role, setRole] = useState<Role>(
     () => (localStorage.getItem(ROLE_KEY(config.storagePrefix)) as Role) ?? "peer",
   );
   const [armed, setArmed] = useState(false);
-  const [myLevel, setMyLevel] = useState(0);
-  const [, rerender] = useState(0);
-  const streamRef = useRef<MediaStream | null>(null);
-  const ctxRef = useRef<AudioContext | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const readings = usePerPeerValue<Reading>(room, "readings", { level: 0, armed: false, name: "" });
+  const mic = useMicLevel({ armed, smoothMs: 100 });
+  const lastPubRef = useRef(0);
 
-  useEffect(() => {
-    if (name) localStorage.setItem(NAME_KEY(config.storagePrefix), name);
-  }, [name, config.storagePrefix]);
   useEffect(() => {
     localStorage.setItem(ROLE_KEY(config.storagePrefix), role);
   }, [role, config.storagePrefix]);
 
-  useEffect(() => {
-    const yReadings = room.doc.getMap<Reading>("readings");
-    const onChange = () => rerender((n) => n + 1);
-    yReadings.observe(onChange);
-    return () => yReadings.unobserve(onChange);
-  }, [room]);
-
-  // Publish my level when armed (throttled in the audio loop itself).
-  const publish = (level: number, armedNow: boolean) => {
-    const myName = name.trim() || `peer-${room.peerId.slice(0, 4)}`;
-    room.doc.getMap<Reading>("readings").set(room.peerId, {
-      level: Math.round(level),
-      armed: armedNow,
-      name: myName,
-    });
-  };
-
-  // Audio setup
+  // Publish my reading at ~4 Hz when armed; clear when disarmed.
   useEffect(() => {
     if (!armed) {
-      // On disarm: stop stream, publish armed=false
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      ctxRef.current?.close().catch(() => undefined);
-      ctxRef.current = null;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      // Don't publish a phantom reading when not armed — keeps the teacher
-      // view limited to peers who actually have their mic on.
-      room.doc.getMap<Reading>("readings").delete(room.peerId);
+      readings.clearMy();
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const ctx = new AudioContext();
-        ctxRef.current = ctx;
-        const src = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024;
-        src.connect(analyser);
-        const buf = new Float32Array(analyser.fftSize);
-        let smoothed = 0;
-        let lastPub = 0;
-        const loop = () => {
-          analyser.getFloatTimeDomainData(buf);
-          let sum = 0;
-          for (let i = 0; i < buf.length; i++) sum += (buf[i] ?? 0) * (buf[i] ?? 0);
-          const rms = Math.sqrt(sum / buf.length); // 0..~1
-          const db = 20 * Math.log10(Math.max(rms, 1e-6)); // -120..0
-          // Map -60 dB (silence) → 0, -10 dB (loud) → 100
-          const level = Math.max(0, Math.min(100, ((db + 60) / 50) * 100));
-          smoothed = smoothed * 0.7 + level * 0.3;
-          setMyLevel(smoothed);
-          const now = performance.now();
-          if (now - lastPub > 250) {
-            publish(smoothed, true);
-            lastPub = now;
-          }
-          rafRef.current = requestAnimationFrame(loop);
-        };
-        loop();
-      } catch (err) {
-        console.warn("[shhh] mic denied", err);
-        setArmed(false);
-      }
-    })();
+    const now = performance.now();
+    if (now - lastPubRef.current < 250) return;
+    lastPubRef.current = now;
+    readings.setMy({
+      level: Math.round(mic.level * 100),
+      armed: true,
+      name: myName,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mic.level, armed, myName]);
+
+  // On disarm, also clear (covers component-mount-time race).
+  useEffect(() => {
     return () => {
-      cancelled = true;
+      if (armed) readings.clearMy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [armed]);
+  }, []);
 
-  const readings: Array<{ id: string; r: Reading }> = [];
-  room.doc.getMap<Reading>("readings").forEach((r, id) => readings.push({ id, r }));
-  readings.sort((a, b) => b.r.level - a.r.level);
-
-  const armedPeers = readings.filter((r) => r.r.armed);
+  const myLevelDisplay = Math.round(mic.level * 100);
+  const list = readings.entries.map(([id, r]) => ({ id, r })).sort((a, b) => b.r.level - a.r.level);
+  const armedPeers = list.filter((r) => r.r.armed);
   const avg =
     armedPeers.length > 0 ? armedPeers.reduce((s, r) => s + r.r.level, 0) / armedPeers.length : 0;
 
@@ -172,13 +114,17 @@ function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
             </button>
           ) : (
             <>
-              <p className="shhh-armed">live · {Math.round(myLevel)}/100</p>
-              <div className="shhh-bar" style={{ "--lvl": `${myLevel}%` } as React.CSSProperties}>
+              <p className="shhh-armed">live · {myLevelDisplay}/100</p>
+              <div
+                className="shhh-bar"
+                style={{ "--lvl": `${myLevelDisplay}%` } as React.CSSProperties}
+              >
                 <div className="shhh-bar-fill" />
               </div>
               <button type="button" className="shhh-disarm" onClick={() => setArmed(false)}>
                 disarm
               </button>
+              {mic.error && <p className="shhh-error">mic error: {mic.error}</p>}
             </>
           )}
         </>
@@ -194,8 +140,8 @@ function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
             <div className="shhh-bar-fill" />
           </div>
           <ul className="shhh-list">
-            {readings.length === 0 && <li className="shhh-empty">no mics yet</li>}
-            {readings.map(({ id, r }) => (
+            {list.length === 0 && <li className="shhh-empty">no mics yet</li>}
+            {list.map(({ id, r }) => (
               <li key={id} className={`shhh-peer ${r.armed ? "is-armed" : "is-idle"}`}>
                 <span className="shhh-peer-name">{r.name}</span>
                 <div
