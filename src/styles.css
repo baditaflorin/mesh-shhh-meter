@@ -95,6 +95,29 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
+.shhh-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
+  font-size: 0.85rem;
+  color: var(--mesh-muted);
+}
+.shhh-manual-range {
+  width: 100%;
+  accent-color: var(--mesh-accent);
+}
+.shhh-manual-clear {
+  align-self: flex-start;
+  background: transparent;
+  color: var(--mesh-muted);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .shhh-bar,
 .shhh-class-bar,
 .shhh-peer-bar {

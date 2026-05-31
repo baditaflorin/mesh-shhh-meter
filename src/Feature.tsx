@@ -38,30 +38,55 @@ function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
     () => (localStorage.getItem(ROLE_KEY(config.storagePrefix)) as Role) ?? "peer",
   );
   const [armed, setArmed] = useState(false);
+  // Manual fallback level (0-100). When >0 it overrides the live mic reading so
+  // the meter is usable — and testable headless — on devices without a mic or
+  // without getUserMedia permission. The advertised "noise level propagates to
+  // the teacher's map" works through the same readings.setMy() path either way.
+  const [manualLevel, setManualLevel] = useState<number | null>(null);
   const readings = usePerPeerValue<Reading>(room, "readings", { level: 0, armed: false, name: "" });
-  const mic = useMicLevel({ armed, smoothMs: 100 });
+  const mic = useMicLevel({ armed: armed && manualLevel == null, smoothMs: 100 });
   const lastPubRef = useRef(0);
+  const trailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     localStorage.setItem(ROLE_KEY(config.storagePrefix), role);
   }, [role, config.storagePrefix]);
 
-  // Publish my reading at ~4 Hz when armed; clear when disarmed.
+  // The effective level the student broadcasts: manual override wins, else mic.
+  const effectiveLevel = manualLevel != null ? manualLevel : Math.round(mic.level * 100);
+
+  // Publish my reading at ~4 Hz when armed; clear when disarmed. Throttled, but
+  // with a trailing publish so the *latest* level always lands — otherwise a
+  // discrete change (manual slider) or a final calm mic reading inside the
+  // throttle window would be silently dropped and never reach the teacher.
   useEffect(() => {
     if (!armed) {
+      if (trailingRef.current) clearTimeout(trailingRef.current);
+      trailingRef.current = null;
       readings.clearMy();
       return;
     }
-    const now = performance.now();
-    if (now - lastPubRef.current < 250) return;
-    lastPubRef.current = now;
-    readings.setMy({
-      level: Math.round(mic.level * 100),
-      armed: true,
-      name: myName,
-    });
+    const publish = () => {
+      lastPubRef.current = performance.now();
+      readings.setMy({ level: effectiveLevel, armed: true, name: myName });
+    };
+    const sinceLast = performance.now() - lastPubRef.current;
+    if (sinceLast >= 250) {
+      publish();
+    } else if (!trailingRef.current) {
+      trailingRef.current = setTimeout(() => {
+        trailingRef.current = null;
+        publish();
+      }, 250 - sinceLast);
+    }
+    return () => {
+      if (trailingRef.current) {
+        clearTimeout(trailingRef.current);
+        trailingRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mic.level, armed, myName]);
+  }, [effectiveLevel, armed, myName]);
 
   // On disarm, also clear (covers component-mount-time race).
   useEffect(() => {
@@ -71,7 +96,7 @@ function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const myLevelDisplay = Math.round(mic.level * 100);
+  const myLevelDisplay = effectiveLevel;
   const list = readings.entries.map(([id, r]) => ({ id, r })).sort((a, b) => b.r.level - a.r.level);
   const armedPeers = list.filter((r) => r.r.armed);
   const avg =
@@ -125,6 +150,30 @@ function Body({ room, config }: { room: YRoom; config: MeshConfig }) {
                 disarm
               </button>
               {mic.error && <p className="shhh-error">mic error: {mic.error}</p>}
+              <label className="shhh-manual">
+                <span>
+                  {manualLevel != null ? "manual level (overrides mic)" : "or set level by hand"}
+                </span>
+                <input
+                  type="range"
+                  className="shhh-manual-range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  aria-label="manual noise level"
+                  value={manualLevel ?? 0}
+                  onChange={(e) => setManualLevel(Number(e.target.value))}
+                />
+                {manualLevel != null && (
+                  <button
+                    type="button"
+                    className="shhh-manual-clear"
+                    onClick={() => setManualLevel(null)}
+                  >
+                    use mic instead
+                  </button>
+                )}
+              </label>
             </>
           )}
         </>

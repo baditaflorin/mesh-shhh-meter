@@ -1,7 +1,7 @@
 # mesh-shhh-meter
 
 [![pages](https://img.shields.io/badge/live-baditaflorin.github.io%2Fmesh-shhh-meter-6ab04c)](https://baditaflorin.github.io/mesh-shhh-meter/)
-[![version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/baditaflorin/mesh-shhh-meter/blob/main/package.json)
+[![version](https://img.shields.io/badge/version-0.1.1-blue)](https://github.com/baditaflorin/mesh-shhh-meter/blob/main/package.json)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 > Classroom/library mic-level meter — teacher sees the class noise map in real time
@@ -17,6 +17,8 @@ Tip the dev: **https://www.paypal.com/paypalme/florinbadita**
 ## What it is
 
 Peer-to-peer browser app, no backend of its own beyond the self-hosted WebRTC stack listed below. Built on `@baditaflorin/mesh-common`, hosted on GitHub Pages from `docs/`.
+
+Each **student** arms their mic and the live RMS level (0–100) is broadcast over the mesh at ~4 Hz; the **teacher** view aggregates every armed student into a class noise map plus a running class average. On devices without a mic (or without `getUserMedia` permission), a **manual level slider** overrides the mic and publishes through the same path, so the meter is usable — and testable headless — everywhere. Disarming clears the student from the map mesh-wide.
 
 ## Quickstart (local)
 
